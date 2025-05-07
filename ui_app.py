@@ -49,7 +49,7 @@ def handle_booking(user_input):
     # Step 2: Email
     if state["step"] == "email":
         if not is_valid_email(user_input):
-            st.session_state.chat_history.append({"role": "bot", "text": "❌ Invalid email format. Please enter again."})
+            st.session_state.chat_history.append({"role": "bot", "text": "Your email format is invalid. Please enter again."})
             return
         state["email"] = user_input
         st.session_state.chat_history.append({"role": "bot", "text": "Thanks! Your phone number?"})
@@ -59,7 +59,7 @@ def handle_booking(user_input):
     # Step 3: Phone
     if state["step"] == "phone":
         if not is_valid_phone(user_input):
-            st.session_state.chat_history.append({"role": "bot", "text": "❌ Invalid phone number. Please enter again."})
+            st.session_state.chat_history.append({"role": "bot", "text": "Invalid phone number. Please enter again."})
             return
         state["phone"] = user_input
         st.session_state.chat_history.append({"role": "bot", "text": "When should we contact you? (e.g., next Monday)"})
@@ -70,7 +70,7 @@ def handle_booking(user_input):
     if state["step"] == "date":
         parsed_date = parse_human_date(user_input)
         if parsed_date == "Invalid date":
-            st.session_state.chat_history.append({"role": "bot", "text": "❌ Couldn't understand the date. Please try again."})
+            st.session_state.chat_history.append({"role": "bot", "text": "Couldn't understand the date. Please try (yyyy-mm-dd) format instead."})
             return
         state["date"] = parsed_date
 

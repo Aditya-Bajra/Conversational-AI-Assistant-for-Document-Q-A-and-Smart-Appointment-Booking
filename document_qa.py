@@ -5,16 +5,17 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
 from llm_setup import get_llm
-from utils.file_utils import load_document
+from utils.file_utils import load_documents_from_folder
 
 
-def setup_qa_chain():
+def setup_qa_chain(folder_path="data/documents/"):
     """
     Sets up a FAISS-based RetrievalQA chain using Gemini for answering questions
     from a given document text.
     """
 
-    document_text = load_document("data/sample_doc.txt")
+    all_text = load_documents_from_folder(folder_path)
+    document_text = "\n".join(all_text)
     # Step 1: Split document into chunks
     splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     docs = [Document(page_content=chunk) for chunk in splitter.split_text(document_text)]
@@ -34,7 +35,7 @@ Context:
 Question:
 {question}
 
-Answer in a clear and concise manner. If the answer isn't in the document, say so."""
+Answer in a clear, concise and human-like manner. If the answer isn't in the document, say you do not have that information."""
     )
 
     # Step 4: Build the QA chain with the custom prompt

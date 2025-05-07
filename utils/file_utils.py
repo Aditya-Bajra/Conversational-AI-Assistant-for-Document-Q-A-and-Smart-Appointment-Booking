@@ -1,14 +1,13 @@
 import os
 import PyPDF2
 import docx
+from typing import List
 
 def read_txt(file_path: str) -> str:
-    """Read content from a text file."""
     with open(file_path, "r", encoding="utf-8") as f:
         return f.read()
 
 def read_pdf(file_path: str) -> str:
-    """Read content from a PDF file."""
     with open(file_path, "rb") as f:
         reader = PyPDF2.PdfReader(f)
         pdf_text = ""
@@ -17,7 +16,6 @@ def read_pdf(file_path: str) -> str:
         return pdf_text
 
 def read_docx(file_path: str) -> str:
-    """Read content from a DOCX file."""
     doc = docx.Document(file_path)
     doc_text = ""
     for para in doc.paragraphs:
@@ -38,6 +36,21 @@ def load_document(file_path: str) -> str:
         return read_docx(file_path)
     else:
         raise ValueError(f"Unsupported file format: {file_extension}")
+    
+def load_documents_from_folder(folder_path: str) -> List[str]:
+    """
+    Load and return text from all supported documents in a folder.
+    """
+    all_texts = []
+    for filename in os.listdir(folder_path):
+        file_path = os.path.join(folder_path, filename)
+        if os.path.isfile(file_path):
+            try:
+                text = load_document(file_path)
+                all_texts.append(text)
+            except Exception as e:
+                print(f"Failed to load {filename}: {e}")
+    return all_texts
 
 
 # def test_load_document():
