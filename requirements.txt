@@ -1,4 +1,9 @@
 langchain
 langchain-google-genai
+langchain-community
 python-dotenv
-dateparser
+parsedatetime
+faiss-cpu
+streamlit
+PyPDF2
+python-docx
