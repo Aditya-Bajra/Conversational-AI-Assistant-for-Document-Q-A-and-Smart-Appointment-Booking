@@ -3,6 +3,7 @@ from document_qa import setup_qa_chain, ask_question_from_doc
 from tools.validators import is_valid_email, is_valid_phone
 from tools.date_parser import parse_human_date
 from storage import save_booking
+from tools.booking_trigger import check_for_booking_trigger  
 
 # Load the document QA chain once
 if "qa_chain" not in st.session_state:
@@ -107,8 +108,8 @@ user_input = st.text_input("You:", key=unique_key)
 if user_input:
     st.session_state.chat_history.append({"role": "user", "text": user_input})
 
-    # If booking is ongoing
-    if st.session_state.booking_state["step"] is not None or "call me" in user_input.lower():
+    # If booking is ongoing or user has asked to book an appointment
+    if st.session_state.booking_state["step"] is not None or check_for_booking_trigger(user_input):
         handle_booking(user_input)
 
     # Else handle as document QA
