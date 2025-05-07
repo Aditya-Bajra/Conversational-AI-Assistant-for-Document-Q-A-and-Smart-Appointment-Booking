@@ -5,23 +5,16 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
 from llm_setup import get_llm
+from utils.file_utils import load_document
 
 
-def load_document(file_path: str) -> str:
-    """
-    Load a plain text document from disk.
-    Assumes UTF-8 encoding.
-    """
-    with open(file_path, "r", encoding="utf-8") as f:
-        text = f.read()
-    return text
-
-
-def setup_qa_chain(document_text: str):
+def setup_qa_chain():
     """
     Sets up a FAISS-based RetrievalQA chain using Gemini for answering questions
     from a given document text.
     """
+
+    document_text = load_document("data/sample_doc.txt")
     # Step 1: Split document into chunks
     splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     docs = [Document(page_content=chunk) for chunk in splitter.split_text(document_text)]

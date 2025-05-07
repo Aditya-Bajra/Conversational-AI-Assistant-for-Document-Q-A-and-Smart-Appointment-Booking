@@ -7,8 +7,7 @@ from tools.booking_trigger import check_for_booking_trigger
 
 # Load the document QA chain once
 if "qa_chain" not in st.session_state:
-    document_text = open("data/sample_doc.txt", "r", encoding="utf-8").read()
-    st.session_state.qa_chain = setup_qa_chain(document_text)
+    st.session_state.qa_chain = setup_qa_chain()
 
 # Initialize chat history
 if "chat_history" not in st.session_state:

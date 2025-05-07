@@ -1,10 +1,9 @@
 from document_qa import load_document, setup_qa_chain, ask_question_from_doc
 from tools.book_appointment import start_booking_flow 
 
-def run_chatbot(document_path):
+def run_chatbot():
     # Load and prepare document QA chain
-    document_text = load_document(document_path)
-    qa_chain = setup_qa_chain(document_text)
+    qa_chain = setup_qa_chain()
 
     print("🤖 Chatbot Ready! Type 'call me' or 'book appointment' to schedule a call, or ask a question.")
     while True:
