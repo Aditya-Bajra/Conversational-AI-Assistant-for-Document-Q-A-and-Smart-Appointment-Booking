@@ -1,7 +1,25 @@
-import re
+from .models import ContactInfo, AppointmentDetails
+import parsedatetime
+from datetime import datetime
 
-def is_valid_email(email):
-    return re.match(r"[^@]+@[^@]+\.[^@]+", email) is not None
+def validate_contact(data: dict):
+    try:
+        ContactInfo(**data)
+        return True, ""
+    except Exception as e:
+        return False, str(e)
 
-def is_valid_phone(phone):
-    return re.match(r"^\+?\d{10,15}$", phone) is not None
+def validate_appointment(data: dict):
+    try:
+        AppointmentDetails(**data)
+        return True, ""
+    except Exception as e:
+        return False, str(e)
+
+def parse_natural_date(text: str):
+    cal = parsedatetime.Calendar()
+    time_struct, parse_status = cal.parse(text)
+    if parse_status == 0:
+        return None
+    parsed_date = datetime(*time_struct[:6])
+    return parsed_date.date().isoformat()

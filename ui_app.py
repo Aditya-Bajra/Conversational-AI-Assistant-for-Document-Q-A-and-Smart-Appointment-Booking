@@ -1,120 +1,170 @@
 import streamlit as st
-from document_qa import setup_qa_chain, ask_question_from_doc
-from tools.validators import is_valid_email, is_valid_phone
-from tools.date_parser import parse_human_date
+from datetime import datetime
+from langchain.agents import AgentExecutor, create_tool_calling_agent
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+
+from tools.document_qa import process_documents, create_document_tool
+from tools.forms import collect_contact_info, book_appointment
+from tools.validators import validate_contact, validate_appointment, parse_natural_date
+from llm_setup import get_llm
 from storage import save_booking
-from tools.booking_trigger import check_for_booking_trigger  
 
-# Load the document QA chain once
-if "qa_chain" not in st.session_state:
-    st.session_state.qa_chain = setup_qa_chain()
+# Initialize core components
+llm = get_llm()
 
-# Initialize chat history
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-
-# Initialize booking form state
-if "booking_state" not in st.session_state:
-    st.session_state.booking_state = {
-        "step": None,
-        "name": "",
-        "email": "",
-        "phone": "",
-        "date": ""
-    }
-
-def display_chat():
-    # Just show chat history in simple text
-    for entry in st.session_state.chat_history:
-        role = entry["role"]
-        text = entry["text"]
-        st.write(f"{role.capitalize()}: {text}")
-
-def handle_booking(user_input):
-    state = st.session_state.booking_state
-
-    # Start booking
-    if state["step"] is None:
-        st.session_state.chat_history.append({"role": "bot", "text": "Sure! What is your name?"})
-        state["step"] = "name"
-        return
-
-    # Step 1: Name
-    if state["step"] == "name":
-        state["name"] = user_input
-        st.session_state.chat_history.append({"role": "bot", "text": "Got it. What's your email?"})
-        state["step"] = "email"
-        return
-
-    # Step 2: Email
-    if state["step"] == "email":
-        if not is_valid_email(user_input):
-            st.session_state.chat_history.append({"role": "bot", "text": "Your email format is invalid. Please enter again."})
-            return
-        state["email"] = user_input
-        st.session_state.chat_history.append({"role": "bot", "text": "Thanks! Your phone number?"})
-        state["step"] = "phone"
-        return
-
-    # Step 3: Phone
-    if state["step"] == "phone":
-        if not is_valid_phone(user_input):
-            st.session_state.chat_history.append({"role": "bot", "text": "Invalid phone number. Please enter again."})
-            return
-        state["phone"] = user_input
-        st.session_state.chat_history.append({"role": "bot", "text": "When should we contact you? (e.g., next Monday)"})
-        state["step"] = "date"
-        return
-
-    # Step 4: Date
-    if state["step"] == "date":
-        parsed_date = parse_human_date(user_input)
-        if parsed_date == "Invalid date":
-            st.session_state.chat_history.append({"role": "bot", "text": "Couldn't understand the date. Please try (yyyy-mm-dd) format instead."})
-            return
-        state["date"] = parsed_date
-
-        # Save booking
-        save_booking({
-            "name": state["name"],
-            "email": state["email"],
-            "phone": state["phone"],
-            "date": state["date"]
-        })
-
-        st.session_state.chat_history.append({"role": "bot", "text": f"✅ Appointment booked for {state['name']} on {parsed_date}!"})
-
-        # Reset booking state
+def initialize_state():
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+    if "booking_state" not in st.session_state:
         st.session_state.booking_state = {
-            "step": None,
-            "name": "",
-            "email": "",
-            "phone": "",
-            "date": ""
+            "step": 0,  # 0: not booking, 1: collecting contact, 2: collecting appointment, 3: done
+            "data": {}
         }
-        return
+    if "vector_store" not in st.session_state:
+        st.session_state.vector_store = None
 
-# ------------- UI starts here -------------
-st.title("📚 Chat with Doc + Book Appointment")
-display_chat()
+def render_sidebar():
+    with st.sidebar:
+        st.header("📁 Document Management")
+        uploaded_files = st.file_uploader(
+            "Upload documents",
+            type=["pdf", "txt", "md"],
+            accept_multiple_files=True
+        )
+        
+        if uploaded_files and not st.session_state.vector_store:
+            with st.spinner("Processing documents..."):
+                st.session_state.vector_store = process_documents(uploaded_files)
 
-# Input widget with dynamic key to avoid duplication
-unique_key = f"user_input_{len(st.session_state.chat_history)}"  # Ensure key is unique
+def conversational_booking_flow(user_message):
+    state = st.session_state.booking_state
+    data = state["data"]
 
-user_input = st.text_input("You:", key=unique_key)
+    # Step 1: Collect Name
+    if "name" not in data:
+        data["name"] = user_message.strip()
+        if not data["name"]:
+            return "What's your name?"
+        state["step"] = 1
+        return "What's your email address?"
 
-# Handle the input if it's provided
-if user_input:
-    st.session_state.chat_history.append({"role": "user", "text": user_input})
+    # Step 2: Collect Email
+    if "email" not in data:
+        data["email"] = user_message.strip()
+        valid, err = validate_contact({"name": data["name"], "email": data["email"], "phone": "1234567890"})
+        if not valid:
+            data.pop("email", None)
+            return f"Invalid email. Please enter a valid email address."
+        state["step"] = 2
+        return "What's your phone number?"
 
-    # If booking is ongoing or user has asked to book an appointment
-    if st.session_state.booking_state["step"] is not None or check_for_booking_trigger(user_input):
-        handle_booking(user_input)
+    # Step 3: Collect Phone
+    if "phone" not in data:
+        data["phone"] = user_message.strip()
+        valid, err = validate_contact({"name": data["name"], "email": data["email"], "phone": data["phone"]})
+        if not valid:
+            data.pop("phone", None)
+            return f"Invalid phone number. Please enter a valid phone number."
+        state["step"] = 3
+        return "What date would you like to book? (e.g., 'next Monday')"
 
-    # Else handle as document QA
-    else:
-        answer = ask_question_from_doc(st.session_state.qa_chain, user_input)
-        st.session_state.chat_history.append({"role": "bot", "text": answer["result"]})
+    # Step 4: Collect Date
+    if "date" not in data:
+        date_val = parse_natural_date(user_message.strip())
+        if not date_val:
+            return "Invalid date. Please enter a date like '2024-06-10' or 'next Monday'."
+        data["date"] = date_val
+        state["step"] = 4
+        return "What's the purpose of your appointment?"
 
-    # After processing the input, rerun the app
-    st.rerun()  # Re-run the script to reset everything and update the chat history
+    # Step 5: Collect Purpose
+    if "purpose" not in data:
+        data["purpose"] = user_message.strip()
+        valid, err = validate_appointment({"date": data["date"], "purpose": data["purpose"]})
+        if not valid:
+            data.pop("purpose", None)
+            return "Please describe the purpose of your appointment in a few words."
+        state["step"] = 5
+        save_booking(data)
+        return (
+            f"Thank you, {data['name']}!\n\n"
+            f"Appointment booked for {data['date']}.\n"
+            f"We'll contact you at {data['email']} / {data['phone']}."
+        )
+
+    # Booking complete
+    state["step"] = 0
+    state["data"] = {}
+    return None
+
+def main():
+    st.title("🤖 Smart Document & Booking Assistant")
+    initialize_state()
+    render_sidebar()
+
+    # Build tools
+    tools = [collect_contact_info, book_appointment]
+    if st.session_state.vector_store:
+        tools.append(create_document_tool(st.session_state.vector_store))
+
+    # Prompt with agent_scratchpad and chat_history
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", """You're an assistant handling both documents and bookings. Rules:
+1. Use document_qa for document queries.
+2. Use collect_contact_info when booking mentioned.
+3. Use book_appointment for scheduling.
+4. Current date: {time}"""),
+        MessagesPlaceholder("chat_history", optional=True),
+        ("human", "{input}"),
+        MessagesPlaceholder("agent_scratchpad")
+    ])
+
+    agent = create_tool_calling_agent(llm, tools, prompt)
+    agent_executor = AgentExecutor(agent=agent, tools=tools)
+
+    # Display chat messages
+    for msg in st.session_state.messages:
+        st.chat_message(msg["role"]).write(msg["content"])
+
+    # Chat input
+    user_input = st.chat_input("Ask a question or book an appointment...")
+
+    # Conversational booking state
+    booking_state = st.session_state.booking_state
+
+    if user_input:
+        # If in booking flow, handle step by step
+        if booking_state["step"] > 0:
+            reply = conversational_booking_flow(user_input)
+            st.session_state.messages.append({"role": "user", "content": user_input})
+            if reply:
+                st.session_state.messages.append({"role": "assistant", "content": reply})
+            else:
+                st.session_state.messages.append({"role": "assistant", "content": "Appointment booked! ✅"})
+                booking_state["step"] = 0
+                booking_state["data"] = {}
+            st.rerun()
+        else:
+            # Normal agent flow
+            st.session_state.messages.append({"role": "user", "content": user_input})
+            response = agent_executor.invoke({
+                "input": user_input,
+                "time": datetime.now().strftime("%Y-%m-%d %H:%M")
+            })
+            # Detect if booking is triggered
+            if "book" in user_input.lower() or "appointment" in user_input.lower():
+                booking_state["step"] = 1
+                booking_state["data"] = {}
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": "OK. I'll need to collect your contact information first. What's your name?"
+                })
+            else:
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": response["output"]
+                })
+            st.rerun()
+
+if __name__ == "__main__":
+    main()
