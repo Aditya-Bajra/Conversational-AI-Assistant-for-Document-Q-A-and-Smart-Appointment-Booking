@@ -4,8 +4,9 @@ A Conversational AI Assistant designed for Document Question & Answering and Sma
 
 ## Features
 
-- Natural language question answering over uploaded documents (txt, PDF, docx)
+- Natural language question answering over uploaded documents (txt, pdf)
 - Smart appointment booking through conversational interface
+- Appointment details stored in json file
 - Date parsing and validation for appointment scheduling
 - Modular tools for booking logic and document processing
 - User-friendly Streamlit-based UI for easy interaction
@@ -13,25 +14,21 @@ A Conversational AI Assistant designed for Document Question & Answering and Sma
 ## Folder Structure
 ```
 📂 Project-root/
-├── requirements.txt         # Python dependencies
-├── main.py                  # Entry point
-├── chatbot.py               # Conversational logic
-├── document_qa.py           # Document Q&A logic
-├── llm_setup.py             # Language model setup
-├── storage.py               # Data storage logic
-├── ui_app.py                # Streamlit UI
-├── data/                    # Data folder
-├── documents/               # Document files
-│ ├── sample_doc.txt
-│ └── Careers.pdf
-├── appointments.json        # Appointment data
-├── tools/                   # Booking and parsing tools
-│ ├── book_appointment.py    # Booking logic
-│ ├── booking_trigger.py     # Booking triggers
-│ ├── date_parser.py         # Date parsing and validation
-│ └── validators.py          # Input validation
-└── utils/ 
-└── file_utils.py            # File handling utilities
+├── requirements.txt         # All dependencies
+├── ui_app.py                # Main Streamlit entry point
+├── storage.py               # JSON storage functions (save_booking, load_bookings)
+├── llm_setup.py             # LLM initialization
+│
+├── tools/
+│   ├── __init__.py          # Package initialization
+│   ├── document_qa.py       # Doc processing (PDF/TXT), embeddings, FAISS
+│   ├── forms.py             # Tools for conversational form
+│   ├── models.py            # ContactInfo/AppointmentDetails models
+│   ├── validators.py        # parse_human_date, validate_contact_info
+│ 
+├── data/                    # Folder for storage
+│   └── appointments.json    # Booking records
+│
 ```
 ## Installation
 
@@ -47,7 +44,9 @@ To launch the application, run:
 ```bash
 streamlit run ui_app.py
 ```
-
+## Result
+![App Screenshot](images/screenshot1.png)
+![App Screenshot](images/screenshot2.png)
 ## Contribution
 
 Contributions are welcome! If you want to contribute:
